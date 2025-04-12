@@ -12,18 +12,9 @@ import (
 	"path"
 	"time"
 
+	"github.com/art-frela/routeros/types"
 	"github.com/kelseyhightower/envconfig"
 	"golang.org/x/time/rate"
-)
-
-const (
-	epRest                       = "/rest"
-	endpointIPFirewallAddresList = "/ip/firewall/address-list"
-)
-
-const (
-	defBaseURL        = "http://192.168.0.1"
-	defRequestTimeout = time.Second * 5
 )
 
 var (
@@ -50,14 +41,14 @@ func NewClientConfigFromEnv(envPrefix string) (*Config, error) {
 }
 
 type Client struct {
+	IPFirewallAddressListService *IPFirewallAddressListService
+	//
 	baseURL        *url.URL
 	lim            *rate.Limiter
 	requestTimeout time.Duration
 	user           string
 	password       string
 }
-
-type Option func(*Client)
 
 func NewClient(cfg Config) (*Client, error) {
 	if cfg.BaseURL == "" {
@@ -73,7 +64,7 @@ func NewClient(cfg Config) (*Client, error) {
 		return nil, errMissUserOrPass
 	}
 
-	u.Path = path.Join(u.Path, epRest)
+	u.Path = path.Join(u.Path, types.EndpointRest)
 
 	rt := rate.Every(cfg.PauseBetweenRequests)
 
@@ -84,6 +75,8 @@ func NewClient(cfg Config) (*Client, error) {
 		user:           cfg.User,
 		password:       cfg.Password,
 	}
+
+	c.IPFirewallAddressListService = &IPFirewallAddressListService{c: c}
 
 	return c, nil
 }

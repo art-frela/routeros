@@ -4,24 +4,15 @@ import (
 	"context"
 	"net/http"
 	"net/url"
+
+	"github.com/art-frela/routeros/types"
 )
-
-type FirewallAddressListItem struct {
-	ID           string   `json:".id"`
-	Address      string   `json:"address"`
-	CreationTime DateTime `json:"creation-time"`
-	Disabled     string   `json:"disabled"`
-	Dynamic      string   `json:"dynamic"`
-	List         string   `json:"list"`
-}
-
-type FirewallAddressList []FirewallAddressListItem
 
 type IPFirewallAddressListService struct {
 	c *Client
 }
 
-func (ipfwls *IPFirewallAddressListService) Find(ctx context.Context, list string, ips ...string) (FirewallAddressList, error) {
+func (ipfwls *IPFirewallAddressListService) Find(ctx context.Context, list string, ips ...string) (types.FirewallAddressList, error) {
 	var queries url.Values
 
 	if len(list) > 0 {
@@ -38,19 +29,14 @@ func (ipfwls *IPFirewallAddressListService) Find(ctx context.Context, list strin
 		queries["address"] = ips
 	}
 
-	return makeRequest[FirewallAddressList](ctx, ipfwls.c, endpointIPFirewallAddresList, http.MethodGet, nil, queries)
+	return makeRequest[types.FirewallAddressList](ctx, ipfwls.c, types.EndpointIPFirewallAddresList, http.MethodGet, nil, queries)
 }
 
-type FirewallAddressListNewItem struct {
-	Address  string `json:"address"`
-	Comment  string `json:"comment"`
-	Disabled string `json:"disabled"`
-	Dynamic  string `json:"dynamic"`
-	List     string `json:"list"`
-}
+func (ipfwls *IPFirewallAddressListService) Add(ctx context.Context, item types.FirewallAddressListNewItem) (*types.FirewallAddressListItem, error) {
+	res, err := makeRequest[types.FirewallAddressListItem](ctx, ipfwls.c, types.EndpointIPFirewallAddresList, http.MethodPut, item, nil)
+	if err != nil {
+		return nil, err
+	}
 
-func (ipfwls *IPFirewallAddressListService) Add(ctx context.Context, item FirewallAddressListNewItem) error {
-	_, err := makeRequest[any](ctx, ipfwls.c, endpointIPFirewallAddresList, http.MethodPut, item, nil)
-
-	return err
+	return &res, nil
 }

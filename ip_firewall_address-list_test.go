@@ -1,14 +1,46 @@
 package routeros
 
 import (
+	"context"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
+	"github.com/art-frela/routeros/pkg/mockserver"
+	"github.com/art-frela/routeros/types"
 	"github.com/stretchr/testify/assert"
 )
 
+const testTimeout = time.Second * 150000
+
 func TestIPFirewallAddressListService_Find(t *testing.T) {
-	cfg, err := NewClientConfigFromEnv("ROS_TEST")
+	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
+	defer cancel()
+
+	dt2ip, _ := time.Parse(time.DateTime, "2025-04-06 02:23:27")
+
+	dummy := mockserver.New("root", "master")
+	mockserver.WithIPFireWallAddressList(map[string]types.FirewallAddressList{
+		"test": {
+			{
+				ID:           "*2D9AC9",
+				Address:      "2ip.ru",
+				CreationTime: types.DateTime{Time: dt2ip},
+				Disabled:     "false",
+				Dynamic:      "false",
+				List:         "test",
+			},
+		},
+	})(dummy)
+
+	ts := httptest.NewServer(http.HandlerFunc(dummy.IPFirewallAddressList))
+	defer ts.Close()
+
+	t.Setenv("ROS_TEST_FIND_BASE_URL", ts.URL)
+	t.Setenv("ROS_TEST_FIND_USER", "root")
+
+	cfg, err := NewClientConfigFromEnv("ROS_TEST_FIND")
 	if err != nil {
 		t.Errorf("NewClientConfigFromEnv error: %s", err)
 
@@ -22,31 +54,37 @@ func TestIPFirewallAddressListService_Find(t *testing.T) {
 		return
 	}
 
-	dt2ip, _ := time.Parse(time.DateTime, "2025-04-06 02:23:27")
-
 	tests := []struct {
 		name    string
 		c       *Client
 		list    string
 		ips     []string
-		want    FirewallAddressList
+		want    types.FirewallAddressList
 		wantErr bool
 	}{
 		{
-			name: "test.1 handly run - 2ip.ru",
+			name: "test.1 ok, exists - 2ip.ru",
 			c:    c,
-			list: "my-address-list",
+			list: "test",
 			ips:  []string{"2ip.ru"},
-			want: FirewallAddressList{
+			want: types.FirewallAddressList{
 				{
 					ID:           "*2D9AC9",
 					Address:      "2ip.ru",
-					CreationTime: DateTime{Time: dt2ip},
+					CreationTime: types.DateTime{Time: dt2ip},
 					Disabled:     "false",
 					Dynamic:      "false",
-					List:         "my-address-list",
+					List:         "test",
 				},
 			},
+			wantErr: false,
+		},
+		{
+			name:    "test.2 ok, not exists",
+			c:       c,
+			list:    "test",
+			ips:     []string{"7ip.ru"},
+			want:    types.FirewallAddressList{},
 			wantErr: false,
 		},
 	}
@@ -55,7 +93,7 @@ func TestIPFirewallAddressListService_Find(t *testing.T) {
 			ipfwls := &IPFirewallAddressListService{
 				c: tt.c,
 			}
-			got, err := ipfwls.Find(t.Context(), tt.list, tt.ips...)
+			got, err := ipfwls.Find(ctx, tt.list, tt.ips...)
 
 			if tt.wantErr {
 				assert.Error(t, err, "IPFirewallAddressListService.Find() error")
@@ -69,7 +107,32 @@ func TestIPFirewallAddressListService_Find(t *testing.T) {
 }
 
 func TestIPFirewallAddressListService_Add(t *testing.T) {
-	cfg, err := NewClientConfigFromEnv("ROS_TEST")
+	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
+	defer cancel()
+
+	dt2ip, _ := time.Parse(time.DateTime, "2025-04-06 02:23:27")
+
+	dummy := mockserver.New("root", "master")
+	mockserver.WithIPFireWallAddressList(map[string]types.FirewallAddressList{
+		"test": {
+			{
+				ID:           "*2D9AC9",
+				Address:      "2ip.ru",
+				CreationTime: types.DateTime{Time: dt2ip},
+				Disabled:     "false",
+				Dynamic:      "false",
+				List:         "test",
+			},
+		},
+	})(dummy)
+
+	ts := httptest.NewServer(http.HandlerFunc(dummy.IPFirewallAddressList))
+	defer ts.Close()
+
+	t.Setenv("ROS_TEST_FIND_BASE_URL", ts.URL)
+	t.Setenv("ROS_TEST_FIND_USER", "root")
+
+	cfg, err := NewClientConfigFromEnv("ROS_TEST_FIND")
 	if err != nil {
 		t.Errorf("NewClientConfigFromEnv error: %s", err)
 
@@ -83,22 +146,44 @@ func TestIPFirewallAddressListService_Add(t *testing.T) {
 		return
 	}
 
+	_, offset := time.Now().Zone()
+
 	tests := []struct {
 		name    string
 		c       *Client
-		item    FirewallAddressListNewItem
+		item    types.FirewallAddressListNewItem
+		want    *types.FirewallAddressListItem
 		wantErr bool
 	}{
 		{
-			name: "test.1 handly run",
+			name: "test.1 ok - add new",
 			c:    c,
-			item: FirewallAddressListNewItem{
+			item: types.FirewallAddressListNewItem{
 				Address:  "zorro.com",
 				Disabled: "false",
 				Dynamic:  "false",
-				List:     "my-address-list",
+				List:     "test",
+			},
+			want: &types.FirewallAddressListItem{
+				Address:      "zorro.com",
+				CreationTime: types.DateTime{Time: time.Now().Add(time.Duration(offset) * time.Second).Truncate(time.Minute).In(time.UTC)},
+				Disabled:     "false",
+				Dynamic:      "false",
+				List:         "test",
 			},
 			wantErr: false,
+		},
+		{
+			name: "test.2 err - add exists",
+			c:    c,
+			item: types.FirewallAddressListNewItem{
+				Address:  "zorro.com",
+				Disabled: "false",
+				Dynamic:  "false",
+				List:     "test",
+			},
+			want:    nil,
+			wantErr: true,
 		},
 	}
 	for _, tt := range tests {
@@ -107,9 +192,18 @@ func TestIPFirewallAddressListService_Add(t *testing.T) {
 				c: tt.c,
 			}
 
-			if err := ipfwls.Add(t.Context(), tt.item); (err != nil) != tt.wantErr {
-				t.Errorf("IPFirewallAddressListService.Add() error = %v, wantErr %v", err, tt.wantErr)
+			got, err := ipfwls.Add(ctx, tt.item)
+			if got != nil {
+				got.ID = tt.want.ID
 			}
+
+			if tt.wantErr {
+				assert.Error(t, err, "IPFirewallAddressListService.Add() error")
+			} else {
+				assert.NoError(t, err, "IPFirewallAddressListService.Add() error")
+			}
+
+			assert.Equal(t, tt.want, got, "IPFirewallAddressListService.Add() new item")
 		})
 	}
 }

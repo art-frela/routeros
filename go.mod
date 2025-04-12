@@ -1,6 +1,6 @@
 module github.com/art-frela/routeros
 
-go 1.24.2
+go 1.23.8
 
 require (
 	github.com/kelseyhightower/envconfig v1.4.0

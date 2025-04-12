@@ -1,4 +1,4 @@
-package routeros
+package types
 
 import (
 	"testing"
