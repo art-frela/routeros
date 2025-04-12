@@ -2,12 +2,13 @@
 
 [![Tests](https://github.com/art-frela/routeros/actions/workflows/go.yml/badge.svg)](https://github.com/art-frela/routeros/actions)
 [![Coverage](https://codecov.io/gh/art-frela/routeros/branch/main/graph/badge.svg)](https://codecov.io/gh/art-frela/routeros)
+[![Version](https://img.shields.io/github/v/tag/art-frela/routeros?label=version&sort=semver)](https://github.com/art-frela/routeros/tags)
 
 > Mikrotik RouterOS REST API client
 
 ## Status
 
-**time-to-time**
+**dev time-to-time**
 
 ## Details
 
