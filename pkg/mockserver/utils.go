@@ -19,5 +19,10 @@ func randStringRunes(n int) string {
 	for i := range b {
 		b[i] = letterRunes[rand.Intn(len(letterRunes))]
 	}
+
 	return string(b)
+}
+
+func Ptr[T any](v T) *T {
+	return &v
 }

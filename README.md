@@ -15,3 +15,16 @@
 Start dev with Mikrotik RouterOS v7.18.2
 
 Use [Mikrotik docs REST API](https://help.mikrotik.com/docs/spaces/ROS/pages/47579162/REST+API)
+
+| #           | endpoint                    | description           | impl               |
+| :---------- | --------------------------- | --------------------- | ------------------ |
+| ip/firewall | `/ip/firewall/address-list` | add/list address list | :white_check_mark: |
+| tools       | `/tool/ping`                | send echo requests    | :white_check_mark: |
+|             |                             |                       |                    |
+|             |                             |                       |                    |
+|             |                             |                       |                    |
+|             |                             |                       |                    |
+|             |                             |                       |                    |
+|             |                             |                       |                    |
+|             |                             |                       |                    |
+|             |                             |                       |                    |

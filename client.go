@@ -42,6 +42,7 @@ func NewClientConfigFromEnv(envPrefix string) (*Config, error) {
 
 type Client struct {
 	IPFirewallAddressListService *IPFirewallAddressListService
+	ToolService                  *ToolService
 	//
 	baseURL        *url.URL
 	lim            *rate.Limiter
@@ -77,6 +78,7 @@ func NewClient(cfg Config) (*Client, error) {
 	}
 
 	c.IPFirewallAddressListService = &IPFirewallAddressListService{c: c}
+	c.ToolService = &ToolService{c: c}
 
 	return c, nil
 }
@@ -99,9 +101,6 @@ func makeRequest[T any](ctx context.Context, c *Client, apiEndpoint, method stri
 		requestBody = bytes.NewBuffer(body)
 	}
 
-	timeoutCtx, cancel := context.WithTimeout(ctx, c.requestTimeout)
-	defer cancel()
-
 	u := *c.baseURL.JoinPath(apiEndpoint)
 
 	qq := u.Query()
@@ -111,6 +110,9 @@ func makeRequest[T any](ctx context.Context, c *Client, apiEndpoint, method stri
 			qq.Add(k, v)
 		}
 	}
+
+	timeoutCtx, cancel := context.WithTimeout(ctx, c.requestTimeout)
+	defer cancel()
 
 	req, err := http.NewRequestWithContext(timeoutCtx, method, u.String()+"?"+qq.Encode(), requestBody)
 	if err != nil {

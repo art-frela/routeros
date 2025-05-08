@@ -13,8 +13,9 @@ import (
 )
 
 type Server struct {
-	basicAuth string
-	ipFwList  ipFwList
+	basicAuth      string
+	ipFwList       ipFwList
+	reachableHosts reachableHosts
 }
 
 func New(user, pass string) *Server {
@@ -29,36 +30,40 @@ func WithIPFireWallAddressList(addressList map[string]types.FirewallAddressList)
 	}
 }
 
-func (s *Server) auth(r *http.Request) *types.Error {
-	token := strings.TrimPrefix(r.Header.Get("Authorization"), "Basic ")
-	if s.basicAuth != token {
-		return &types.Error{
-			Error:   http.StatusUnauthorized,
-			Message: http.StatusText(http.StatusUnauthorized),
+func WithReachableHosts(hosts ...string) Option {
+	return func(s *Server) {
+		s.reachableHosts = make(reachableHosts)
+
+		for _, host := range hosts {
+			s.reachableHosts[host] = struct{}{}
 		}
 	}
-
-	return nil
 }
 
-func (s *Server) IPFirewallAddressList(w http.ResponseWriter, r *http.Request) {
-	if er := s.auth(r); er != nil {
-		writeResponseJSON(w, http.StatusUnauthorized, er)
+func (s *Server) auth(w http.ResponseWriter, r *http.Request) bool {
+	token := strings.TrimPrefix(r.Header.Get("Authorization"), "Basic ")
+	if s.basicAuth != token {
+		writeResponseJSON(w, http.StatusUnauthorized, &types.Error{
+			Error:   http.StatusUnauthorized,
+			Message: http.StatusText(http.StatusUnauthorized),
+		})
 
-		return
+		return false
 	}
 
-	if r.URL.Path != path.Join(types.EndpointRest, types.EndpointIPFirewallAddresList) {
+	return true
+}
+
+func (s *Server) checkPathAndMethods(w http.ResponseWriter, r *http.Request, endpoint string, allowedMethods []string) bool {
+	if r.URL.Path != path.Join(types.EndpointRest, endpoint) {
 		writeResponseJSON(w, http.StatusBadRequest, types.Error{
 			Detail:  "no such command or directory (...)",
 			Error:   http.StatusBadRequest,
 			Message: http.StatusText(http.StatusBadRequest),
 		})
 
-		return
+		return false
 	}
-
-	var allowedMethods = []string{http.MethodGet, http.MethodPut}
 
 	if !slices.Contains(allowedMethods, r.Method) {
 		w.WriteHeader(http.StatusServiceUnavailable)
@@ -66,37 +71,11 @@ func (s *Server) IPFirewallAddressList(w http.ResponseWriter, r *http.Request) {
 <html lang=en>
 <title>Error 503 : unknown method</title>
 <h1>Error 503 : unknown method</h1>`)
-		return
+
+		return false
 	}
 
-	if r.Method == http.MethodGet {
-		list := r.URL.Query().Get("list")
-		addr := r.URL.Query().Get("address")
-		writeResponseJSON(w, http.StatusOK, s.ipFwList.find(list, addr))
-
-		return
-	}
-
-	// POST
-	var newItem types.FirewallAddressListNewItem
-	if err := json.NewDecoder(r.Body).Decode(&newItem); err != nil {
-		writeResponseJSON(w, http.StatusInternalServerError, types.Error{
-			Detail:  err.Error(),
-			Error:   http.StatusInternalServerError,
-			Message: http.StatusText(http.StatusInternalServerError),
-		})
-
-		return
-	}
-
-	item, er := s.ipFwList.add(newItem)
-	if er != nil {
-		writeResponseJSON(w, http.StatusInternalServerError, er)
-
-		return
-	}
-
-	writeResponseJSON(w, http.StatusOK, item)
+	return true
 }
 
 func writeResponseJSON(w http.ResponseWriter, code int, resp any) {

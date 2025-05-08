@@ -1,6 +1,7 @@
 package mockserver
 
 import (
+	"encoding/json"
 	"net/http"
 	"slices"
 	"time"
@@ -8,12 +9,52 @@ import (
 	"github.com/art-frela/routeros/types"
 )
 
+func (s *Server) IPFirewallAddressList(w http.ResponseWriter, r *http.Request) {
+	if !s.auth(w, r) {
+		return
+	}
+
+	if !s.checkPathAndMethods(w, r, types.EndpointIPFirewallAddresList, []string{http.MethodGet, http.MethodPut}) {
+		return
+	}
+
+	if r.Method == http.MethodGet {
+		list := r.URL.Query().Get("list")
+		addr := r.URL.Query().Get("address")
+		writeResponseJSON(w, http.StatusOK, s.ipFwList.find(list, addr))
+
+		return
+	}
+
+	// POST
+	var newItem types.FirewallAddressListNewItem
+	if err := json.NewDecoder(r.Body).Decode(&newItem); err != nil {
+		writeResponseJSON(w, http.StatusInternalServerError, types.Error{
+			Detail:  err.Error(),
+			Error:   http.StatusInternalServerError,
+			Message: http.StatusText(http.StatusInternalServerError),
+		})
+
+		return
+	}
+
+	item, er := s.ipFwList.add(newItem)
+	if er != nil {
+		writeResponseJSON(w, http.StatusInternalServerError, er)
+
+		return
+	}
+
+	writeResponseJSON(w, http.StatusOK, item)
+}
+
 type ipFwList map[string]types.FirewallAddressList
 
 func (lst ipFwList) find(list, address string) types.FirewallAddressList {
 	if len(lst) == 0 {
 		return types.FirewallAddressList{}
 	}
+
 	if list == "" {
 		res := make(types.FirewallAddressList, 0)
 		for _, addresses := range lst {
