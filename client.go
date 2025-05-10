@@ -83,6 +83,14 @@ func NewClient(cfg Config) (*Client, error) {
 	return c, nil
 }
 
+func (c *Client) BaseURL() string {
+	if c.baseURL == nil {
+		return ""
+	}
+
+	return c.baseURL.String()
+}
+
 func makeRequest[T any](ctx context.Context, c *Client, apiEndpoint, method string, requestData any, queries url.Values) (T, error) {
 	var sRes T
 
