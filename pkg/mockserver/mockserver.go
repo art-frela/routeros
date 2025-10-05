@@ -16,6 +16,7 @@ type Server struct {
 	basicAuth      string
 	ipFwList       ipFwList
 	reachableHosts reachableHosts
+	ipAddresses    ipAddressesMap
 }
 
 func New(user, pass string) *Server {
