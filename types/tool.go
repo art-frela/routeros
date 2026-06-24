@@ -1,13 +1,20 @@
 package types
 
+// EchoRequest represents the request parameters for the /tool/ping endpoint.
+//
+// RouterOS API docs: https://manual.mikrotik.com/docs/Developer+Guides/rest-api
 type EchoRequest struct {
 	Address  string  `json:"address"`
 	Count    int64   `json:"count"`
 	Interval float64 `json:"interval"`
 }
 
+// EchoResponse is a slice of EchoResponseElement representing ping results.
 type EchoResponse []EchoResponseElement
 
+// EchoResponseElement represents a single ping response element.
+//
+// RouterOS API docs: https://manual.mikrotik.com/docs/Developer+Guides/rest-api
 type EchoResponseElement struct {
 	Host       string  `json:"host"`
 	PacketLoss string  `json:"packet-loss"`

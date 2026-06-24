@@ -24,3 +24,7 @@ go.work.sum
 # env file
 .env
 .DS_Store
+
+# AI agent configs
+.opencode/
+AGENTS.md
