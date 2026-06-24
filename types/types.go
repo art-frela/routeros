@@ -5,12 +5,19 @@ import (
 	"time"
 )
 
+// Error represents a RouterOS API docs error response.
+//
+// RouterOS API docs: https://manual.mikrotik.com/docs/Developer+Guides/rest-api
 type Error struct {
 	Detail  string `json:"detail,omitempty"`
 	Error   int    `json:"error"`
 	Message string `json:"message"`
 }
 
+// DateTime is a custom time type that marshals/unmarshals
+// RouterOS datetime strings in "2006-01-02 15:04:05" format.
+//
+// RouterOS API docs: https://manual.mikrotik.com/docs/Developer+Guides/rest-api
 type DateTime struct {
 	time.Time
 }

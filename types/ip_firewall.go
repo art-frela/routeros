@@ -2,6 +2,9 @@ package types
 
 import "slices"
 
+// FirewallAddressListItem represents a single entry in a firewall address list.
+//
+// RouterOS API docs: https://manual.mikrotik.com/docs/Developer+Guides/rest-api
 type FirewallAddressListItem struct {
 	ID           string   `json:".id"`
 	Address      string   `json:"address"`
@@ -11,6 +14,9 @@ type FirewallAddressListItem struct {
 	List         string   `json:"list"`
 }
 
+// FirewallAddressList is a slice of FirewallAddressListItem entries.
+//
+// RouterOS API docs: https://manual.mikrotik.com/docs/Developer+Guides/rest-api
 type FirewallAddressList []FirewallAddressListItem
 
 func (list FirewallAddressList) Find(address string) FirewallAddressList {
@@ -28,6 +34,10 @@ func (list FirewallAddressList) Find(address string) FirewallAddressList {
 	return FirewallAddressList{list[ix]}
 }
 
+// FirewallAddressListNewItem represents the fields required to add a new entry
+// to a firewall address list.
+//
+// RouterOS API docs: https://manual.mikrotik.com/docs/Developer+Guides/rest-api
 type FirewallAddressListNewItem struct {
 	Address  string `json:"address"`
 	Comment  string `json:"comment"`

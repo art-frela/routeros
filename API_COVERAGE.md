@@ -8,6 +8,7 @@ This document tracks the implementation status of RouterOS API endpoints in this
 
 - [x] `/ip/firewall/address-list` - Manage IP firewall address lists
 - [x] `/ip/address` - Manage IP addresses
+- [x] `/ip/route` - Manage IP routes
 
 ### Tool Section
 
@@ -17,7 +18,6 @@ This document tracks the implementation status of RouterOS API endpoints in this
 
 ### IP Section
 
-- [ ] `/ip/route` - Manage IP routes
 - [ ] `/ip/dns` - DNS configuration
 - [ ] `/ip/dhcp-server` - DHCP server configuration
 - [ ] `/ip/dhcp-client` - DHCP client configuration
@@ -164,16 +164,15 @@ This document tracks the implementation status of RouterOS API endpoints in this
 
 Based on common use cases and functionality, the following endpoints should be implemented next:
 
-1. `/ip/route` - Essential for network configuration
-2. `/interface` - Basic interface management
-3. `/system/identity` - Basic system configuration
-4. `/user` - User management
-5. `/ip/firewall/filter` - Core firewall functionality
-6. `/ip/dhcp-server` - DHCP services
-7. `/interface/wireless` - Wireless configuration
-8. `/queue/simple` - Traffic shaping
-9. `/routing/ospf` - Dynamic routing
-10. `/tool/traceroute` - Network diagnostics
+1. `/interface` - Basic interface management
+2. `/system/identity` - Basic system configuration
+3. `/user` - User management
+4. `/ip/firewall/filter` - Core firewall functionality
+5. `/ip/dhcp-server` - DHCP services
+6. `/interface/wireless` - Wireless configuration
+7. `/queue/simple` - Traffic shaping
+8. `/routing/ospf` - Dynamic routing
+9. `/tool/traceroute` - Network diagnostics
 
 ## Contributing
 
@@ -189,5 +188,5 @@ To contribute new endpoint implementations:
 
 ## References
 
-- [Official RouterOS REST API Documentation](https://help.mikrotik.com/docs/display/ROS/REST+API)
-- [RouterOS Manual](https://wiki.mikrotik.com/wiki/Manual:Contents)
+- [Official RouterOS REST API Documentation](https://manual.mikrotik.com/docs/developer-guides/rest-api)
+- [RouterOS Manual](https://manual.mikrotik.com/docs/introduction)
