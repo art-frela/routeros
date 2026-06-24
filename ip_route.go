@@ -9,16 +9,16 @@ import (
 )
 
 // IPRouteService handles communication with the IP route methods
-// of the RouterOS API docs.
+// of the RouterOS REST API.
 //
-// RouterOS API docs: https://manual.mikrotik.com/docs/Developer+Guides/rest-api
+// RouterOS REST API: https://manual.mikrotik.com/docs/Developer+Guides/rest-api
 type IPRouteService struct {
 	c *Client
 }
 
 // GetRoutes returns a list of all IP routes configured on the device.
 //
-// RouterOS API docs: https://manual.mikrotik.com/docs/Developer+Guides/rest-api
+// RouterOS REST API: https://manual.mikrotik.com/docs/Developer+Guides/rest-api
 func (s *IPRouteService) GetRoutes(ctx context.Context) (types.IPRouteList, error) {
 	return makeRequest[types.IPRouteList](ctx, s.c, types.EndpointIPRoutes, http.MethodGet, nil, nil)
 }
@@ -27,6 +27,10 @@ func (s *IPRouteService) GetRoutes(ctx context.Context) (types.IPRouteList, erro
 //
 // RouterOS API docs: https://manual.mikrotik.com/docs/Developer+Guides/rest-api
 func (s *IPRouteService) GetRouteByID(ctx context.Context, id string) (types.IPRoute, error) {
+	if id == "" {
+		return types.IPRoute{}, nil
+	}
+
 	queries := url.Values{".id": []string{id}}
 
 	res, err := makeRequest[types.IPRouteList](ctx, s.c, types.EndpointIPRoutes, http.MethodGet, nil, queries)
@@ -43,7 +47,7 @@ func (s *IPRouteService) GetRouteByID(ctx context.Context, id string) (types.IPR
 
 // AddRoute adds a new static route.
 //
-// RouterOS API docs: https://manual.mikrotik.com/docs/Developer+Guides/rest-api
+// RouterOS REST API: https://manual.mikrotik.com/docs/Developer+Guides/rest-api
 func (s *IPRouteService) AddRoute(ctx context.Context, item types.IPRouteAdd) (types.IPRoute, error) {
 	res, err := makeRequest[types.IPRoute](ctx, s.c, types.EndpointIPRoutes, http.MethodPut, item, nil)
 	if err != nil {
@@ -55,7 +59,7 @@ func (s *IPRouteService) AddRoute(ctx context.Context, item types.IPRouteAdd) (t
 
 // RemoveRoute removes an IP route by its ID.
 //
-// RouterOS API docs: https://manual.mikrotik.com/docs/Developer+Guides/rest-api
+// RouterOS REST API: https://manual.mikrotik.com/docs/Developer+Guides/rest-api
 func (s *IPRouteService) RemoveRoute(ctx context.Context, id string) error {
 	queries := url.Values{".id": []string{id}}
 	_, err := makeRequest[any](ctx, s.c, types.EndpointIPRoutes, http.MethodDelete, nil, queries)
@@ -65,7 +69,7 @@ func (s *IPRouteService) RemoveRoute(ctx context.Context, id string) error {
 
 // UpdateRoute updates an existing IP route identified by its ID.
 //
-// RouterOS API docs: https://manual.mikrotik.com/docs/Developer+Guides/rest-api
+// RouterOS REST API: https://manual.mikrotik.com/docs/Developer+Guides/rest-api
 func (s *IPRouteService) UpdateRoute(ctx context.Context, id string, item types.IPRouteAdd) (types.IPRoute, error) {
 	queries := url.Values{".id": []string{id}}
 	res, err := makeRequest[types.IPRoute](ctx, s.c, types.EndpointIPRoutes, http.MethodPatch, item, queries)

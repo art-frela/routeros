@@ -148,14 +148,10 @@ func (m ipRoutesMap) add(item types.IPRouteAdd) (types.IPRoute, error) {
 		Comment:     item.Comment,
 	}
 
-	if m == nil {
-		m = ipRoutesMap{"default": types.IPRouteList{newItem}}
+	if m["default"] == nil {
+		m["default"] = types.IPRouteList{newItem}
 	} else {
-		if m["default"] == nil {
-			m["default"] = types.IPRouteList{newItem}
-		} else {
-			m["default"] = append(m["default"], newItem)
-		}
+		m["default"] = append(m["default"], newItem)
 	}
 
 	return newItem, nil

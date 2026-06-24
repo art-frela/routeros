@@ -9,7 +9,7 @@ import (
 )
 
 // IPFirewallAddressListService handles communication with the IP firewall address-list
-// methods of the RouterOS API docs.
+// methods of the RouterOS REST API.
 //
 // RouterOS API docs: https://manual.mikrotik.com/docs/Developer+Guides/rest-api
 type IPFirewallAddressListService struct {

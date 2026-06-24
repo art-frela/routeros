@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-// Error represents a RouterOS API docs error response.
+// Error represents a RouterOS REST API error response.
 //
 // RouterOS API docs: https://manual.mikrotik.com/docs/Developer+Guides/rest-api
 type Error struct {
