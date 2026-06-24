@@ -43,6 +43,7 @@ func NewClientConfigFromEnv(envPrefix string) (*Config, error) {
 type Client struct {
 	IPFirewallAddressListService *IPFirewallAddressListService
 	ToolService                  *ToolService
+	IPService                    *IPService
 	//
 	baseURL        *url.URL
 	lim            *rate.Limiter
@@ -79,6 +80,7 @@ func NewClient(cfg Config) (*Client, error) {
 
 	c.IPFirewallAddressListService = &IPFirewallAddressListService{c: c}
 	c.ToolService = &ToolService{c: c}
+	c.IPService = &IPService{c: c}
 
 	return c, nil
 }
