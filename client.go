@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -15,11 +14,6 @@ import (
 	"github.com/art-frela/routeros/types"
 	"github.com/kelseyhightower/envconfig"
 	"golang.org/x/time/rate"
-)
-
-var (
-	errMissBaseURL    = errors.New("miss baseURL")
-	errMissUserOrPass = errors.New("miss user/password")
 )
 
 type Config struct {
@@ -59,7 +53,7 @@ type Client struct {
 
 func NewClient(cfg Config) (*Client, error) {
 	if cfg.BaseURL == "" {
-		return nil, errMissBaseURL
+		return nil, ErrMissBaseURL
 	}
 
 	u, err := url.Parse(cfg.BaseURL)
@@ -68,7 +62,7 @@ func NewClient(cfg Config) (*Client, error) {
 	}
 
 	if cfg.User == "" || cfg.Password == "" {
-		return nil, errMissUserOrPass
+		return nil, ErrMissUserOrPass
 	}
 
 	u.Path = path.Join(u.Path, types.EndpointRest)
@@ -160,11 +154,11 @@ func makeRequest[T any](ctx context.Context, c *Client, apiEndpoint, method stri
 			return sRes, err
 		}
 
-		return sRes, fmt.Errorf("status_code: %d, response: %s", res.StatusCode, string(body))
+		return sRes, &ResponseError{StatusCode: res.StatusCode, Body: string(body)}
 	}
 
 	if err := json.NewDecoder(res.Body).Decode(&sRes); err != nil {
-		return sRes, err
+		return sRes, fmt.Errorf("decode response: %w", err)
 	}
 
 	return sRes, nil
