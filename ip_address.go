@@ -27,8 +27,7 @@ func (ips *IPService) GetAddresses(ctx context.Context) (types.IPAddressList, er
 //
 // RouterOS API docs: https://manual.mikrotik.com/docs/Developer+Guides/rest-api
 func (ips *IPService) GetAddressByID(ctx context.Context, id string) (types.IPAddress, error) {
-	var queries url.Values
-	queries = make(url.Values)
+	queries := make(url.Values)
 	queries[".id"] = []string{id}
 
 	res, err := makeRequest[types.IPAddressList](ctx, ips.c, types.EndpointIPAddresses, http.MethodGet, nil, queries)

@@ -216,13 +216,6 @@ func (m ipAddressesMap) update(id string, item types.IPAddressAdd) (types.IPAddr
 func getNetworkFromAddress(address string) string {
 	// Simple implementation to extract network from address like "192.168.1.1/24"
 	// This would return "192.168.1.0" for the network part
-	parts := []string{}
-	for _, c := range address {
-		if c == '/' {
-			break
-		}
-		parts = append(parts, string(c))
-	}
 
 	// For now, just return a placeholder network
 	// A full implementation would calculate the actual network based on CIDR
