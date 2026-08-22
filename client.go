@@ -29,6 +29,9 @@ type Config struct {
 	BurstRequestCount    int           `envconfig:"burst_req_count" default:"10"`
 	User                 string        `envconfig:"user" default:"root"`
 	Password             string        `envconfig:"password" default:"master"`
+	// HTTPClient is an optional custom *http.Client; envconfig:"-" is required
+	// because envconfig cannot derive an env key for *http.Client.
+	HTTPClient *http.Client `envconfig:"-"`
 }
 
 func NewClientConfigFromEnv(envPrefix string) (*Config, error) {
@@ -49,6 +52,7 @@ type Client struct {
 	baseURL        *url.URL
 	lim            *rate.Limiter
 	requestTimeout time.Duration
+	httpClient     *http.Client
 	user           string
 	password       string
 }
@@ -71,10 +75,17 @@ func NewClient(cfg Config) (*Client, error) {
 
 	rt := rate.Every(cfg.PauseBetweenRequests)
 
+	httpClient := cfg.HTTPClient
+	if httpClient == nil {
+		// No Timeout: per-request timeout is applied via context in makeRequest.
+		httpClient = &http.Client{}
+	}
+
 	c := &Client{
 		baseURL:        u,
 		lim:            rate.NewLimiter(rt, cfg.BurstRequestCount),
 		requestTimeout: cfg.RequestTimeout,
+		httpClient:     httpClient,
 		user:           cfg.User,
 		password:       cfg.Password,
 	}
@@ -134,7 +145,7 @@ func makeRequest[T any](ctx context.Context, c *Client, apiEndpoint, method stri
 	req.Header.Set("Content-Type", "application/json")
 	req.SetBasicAuth(c.user, c.password)
 
-	res, err := http.DefaultClient.Do(req)
+	res, err := c.httpClient.Do(req)
 	if err != nil {
 		return sRes, err
 	}
