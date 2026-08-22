@@ -28,3 +28,4 @@ go.work.sum
 # AI agent configs
 .opencode/
 AGENTS.md
+.omo/
