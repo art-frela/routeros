@@ -1,0 +1,91 @@
+# Publishes the QEMU-wrapped RouterOS CHR test image (build context
+# test/integration/) to GHCR as a multi-arch manifest:
+#
+#   ghcr.io/art-frela/routeros-it-chr:<ROUTEROS_VERSION>  (multi-arch manifest)
+#   ghcr.io/art-frela/routeros-it-chr:latest
+#
+# Consumers (the CI integration job via ROUTEROS_IT_IMAGE, local developers)
+# pull this PUBLIC package anonymously — no registry login on their side.
+# NOTE: the first publish of a new GHCR package is private by default; it must
+# be made public once in the GitHub package settings (documented in
+# CONTRIBUTING.md; outside this workflow's control).
+#
+# Architecture note: the Dockerfile installs qemu-system-${ROUTEROS_ARCH} and
+# downloads an arch-specific CHR disk; buildx builds each platform FROM
+# scratch under its own QEMU emulation, so a SINGLE multi-platform build is
+# correct here — no per-arch matrix job is needed.
+#
+# Known caveat: ROUTEROS_ARCH has a static Dockerfile default (x86_64) and a
+# custom build-arg cannot vary per platform within one buildx invocation, so
+# until the Dockerfile maps buildx's automatic TARGETARCH arg, the linux/arm64
+# leg bakes the x86_64 emulator + x86 CHR disk (boots via cross-emulation;
+# slower than a native aarch64 CHR would be).
+
+name: Publish CHR test image
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'test/integration/**'
+      - '.github/workflows/chr-image.yml'
+  workflow_dispatch:
+    inputs:
+      routeros_version:
+        description: 'RouterOS CHR version to publish'
+        required: false
+        default: '7.23.3'
+        type: string
+
+# Resolve the version ONCE and reuse it in build-args and tags: on
+# workflow_dispatch the input wins; on push events the inputs context is
+# empty and the pinned default applies.
+env:
+  ROUTEROS_VERSION: ${{ inputs.routeros_version || '7.23.3' }}
+
+permissions:
+  contents: read
+  packages: write
+
+# Serialize publishes per ref — never cancel an in-flight image push.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Build and push multi-arch CHR image
+    runs-on: ubuntu-latest
+    timeout-minutes: 60 # arm64 leg builds under QEMU emulation — slow
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v5
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Plain tags block (no metadata-action) on purpose: the image contract
+      # is exactly <version> + latest.
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: test/integration
+          platforms: linux/amd64,linux/arm64
+          push: true
+          build-args: |
+            ROUTEROS_VERSION=${{ env.ROUTEROS_VERSION }}
+          tags: |
+            ghcr.io/art-frela/routeros-it-chr:${{ env.ROUTEROS_VERSION }}
+            ghcr.io/art-frela/routeros-it-chr:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
