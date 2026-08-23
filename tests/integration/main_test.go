@@ -1,6 +1,9 @@
 //go:build integration
 
-package routeros
+// Package integration hosts the testify/suite-based integration tests of the
+// routeros client: a shared RouterOS CHR harness (this file) plus one
+// *_suite_test.go per domain, modeled after rehub-service's tests/integration.
+package integration
 
 import (
 	"bytes"
@@ -19,9 +22,11 @@ import (
 
 	"github.com/docker/docker/api/types/build"
 	"github.com/docker/docker/api/types/container"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/suite"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
+
+	"github.com/art-frela/routeros"
 )
 
 const (
@@ -43,13 +48,13 @@ const (
 	chrProvisionRetry    = 3 * time.Second
 )
 
-// Singleton CHR container shared by every TestIntegrationCHR_* test: it is
-// built and booted once per `go test` process and intentionally kept alive
-// for the whole run; the Ryuk reaper removes it after the process exits
-// (KeepImage preserves the built image for the next run).
+// Singleton CHR container shared by every integration suite: it is built and
+// booted once per `go test` process and intentionally kept alive for the
+// whole run; the Ryuk reaper removes it after the process exits (KeepImage
+// preserves the built image for the next run).
 var (
 	chrOnce   sync.Once
-	chrClient *Client
+	chrClient *routeros.Client
 	chrErr    error
 )
 
@@ -60,19 +65,19 @@ var (
 // singleton RouterOS CHR container is built (first run only), booted, the
 // admin password is provisioned, and the shared client is returned. The test
 // is skipped with a clear message when Docker is missing or unhealthy.
-func integrationClient(t *testing.T) *Client {
+func integrationClient(t *testing.T) *routeros.Client {
 	t.Helper()
 
 	testcontainers.SkipIfProviderIsNotHealthy(t)
 
-	// BYO device: mirror integration_test.go env semantics, no container.
+	// BYO device: mirror the BYOSuite env semantics, no container.
 	if os.Getenv("ROS_INTEGRATION_BASE_URL") != "" {
-		cfg, err := NewClientConfigFromEnv("ROS_INTEGRATION")
+		cfg, err := routeros.NewClientConfigFromEnv("ROS_INTEGRATION")
 		if err != nil {
 			t.Fatalf("load ROS_INTEGRATION config: %v", err)
 		}
 
-		c, err := NewClient(*cfg)
+		c, err := routeros.NewClient(*cfg)
 		if err != nil {
 			t.Fatalf("create ROS_INTEGRATION client: %v", err)
 		}
@@ -104,7 +109,9 @@ func startCHR() {
 
 	req := testcontainers.ContainerRequest{
 		FromDockerfile: testcontainers.FromDockerfile{
-			Context:    "./test/integration",
+			// Relative to the test binary CWD (tests/integration), hence
+			// two levels up to the repo's test/integration assets.
+			Context:    "../../test/integration",
 			Dockerfile: "Dockerfile",
 			// Fixed repo/tag + KeepImage avoid the default UUID-tag rebuild
 			// churn; Docker layer cache makes reruns cheap.
@@ -164,7 +171,7 @@ func startCHR() {
 		return
 	}
 
-	chrClient, chrErr = NewClient(Config{
+	chrClient, chrErr = routeros.NewClient(routeros.Config{
 		BaseURL:        baseURL,
 		User:           chrAdminUser,
 		Password:       chrPassword,
@@ -276,7 +283,7 @@ func postCHRExecuteScript(ctx context.Context, hc *http.Client, baseURL string) 
 		return false, nil
 	}
 
-	var rerr *ResponseError
+	var rerr *routeros.ResponseError
 	if errors.As(err, &rerr) && rerr.StatusCode >= 400 && rerr.StatusCode < 500 {
 		return true, nil
 	}
@@ -321,7 +328,8 @@ func verifyCHRPassword(ctx context.Context, hc *http.Client, baseURL string) err
 }
 
 // chrPost sends a JSON POST with basic auth and returns the HTTP status; a
-// status >= 400 is returned as a *ResponseError, mirroring makeRequest.
+// status >= 400 is returned as a *routeros.ResponseError, mirroring
+// makeRequest.
 func chrPost(ctx context.Context, hc *http.Client, url string, payload any, user, password string) (int, error) {
 	body, err := json.Marshal(payload)
 	if err != nil {
@@ -347,43 +355,25 @@ func chrPost(ctx context.Context, hc *http.Client, url string, payload any, user
 	if res.StatusCode >= http.StatusBadRequest {
 		// Best-effort body capture for diagnostics only.
 		respBody, _ := io.ReadAll(io.LimitReader(res.Body, 1024))
-		return res.StatusCode, &ResponseError{StatusCode: res.StatusCode, Body: string(respBody)}
+		return res.StatusCode, &routeros.ResponseError{StatusCode: res.StatusCode, Body: string(respBody)}
 	}
 
 	return res.StatusCode, nil
 }
 
-// TestIntegrationCHR_Client_WrongPassword verifies that a wrong password is
-// rejected by the live RouterOS with 401 surfaced as *ResponseError.
-func TestIntegrationCHR_Client_WrongPassword(t *testing.T) {
-	// GIVEN a bootstrapped CHR harness client and a second client with a wrong password
-	c := integrationClient(t)
+// BaseSuite is embedded by every integration suite; it exposes the shared
+// live-router client.
+type BaseSuite struct {
+	suite.Suite
+	Client *routeros.Client
+}
 
-	// The context bounds only the API calls below: the bootstrap above can
-	// take minutes on a cold container and must not burn the per-test budget.
-	ctx, cancel := context.WithTimeout(context.Background(), itTimeout)
-	defer cancel()
-
-	wrong, err := NewClient(Config{
-		BaseURL:  c.BaseURL(),
-		User:     chrAdminUser,
-		Password: "definitely-wrong",
-		// RequestTimeout must be non-zero: makeRequest layers a
-		// context.WithTimeout(ctx, c.requestTimeout) over every call, and a
-		// zero timeout expires the request before the 401 can arrive.
-		RequestTimeout: itTimeout,
-	})
-	assert.NoError(t, err)
-
-	// WHEN the wrong-password client lists IP addresses
-	_, err = wrong.IPService.GetAddresses(ctx)
-
-	// THEN RouterOS rejects the request with 401 as a *ResponseError
-	assert.Error(t, err)
-
-	var rerr *ResponseError
-	if !assert.True(t, errors.As(err, &rerr), "expected *ResponseError, got %T: %v", err, err) {
-		return
-	}
-	assert.Equal(t, http.StatusUnauthorized, rerr.StatusCode)
+// SetupSuite bootstraps the shared CHR container (or BYO device).
+//
+// There is deliberately NO TestMain: the reference layout bootstraps in
+// TestMain with log.Fatalf, but that would FAIL the run instead of SKIPping
+// when Docker is missing — this suite's SetupSuite keeps the plan-required
+// "no Docker -> SKIP with clear message" semantics.
+func (s *BaseSuite) SetupSuite() {
+	s.Client = integrationClient(s.T())
 }
