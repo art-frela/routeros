@@ -35,13 +35,15 @@ func (list FirewallAddressList) Find(address string) FirewallAddressList {
 }
 
 // FirewallAddressListNewItem represents the fields required to add a new entry
-// to a firewall address list.
+// to a firewall address list. Comment, Disabled and Dynamic are optional:
+// they are omitted from the request when unset because live RouterOS rejects
+// empty-string boolean values with 400 "must be either yes or no".
 //
 // RouterOS API docs: https://manual.mikrotik.com/docs/Developer+Guides/rest-api
 type FirewallAddressListNewItem struct {
 	Address  string `json:"address"`
-	Comment  string `json:"comment"`
-	Disabled string `json:"disabled"`
-	Dynamic  string `json:"dynamic"`
+	Comment  string `json:"comment,omitempty"`
+	Disabled string `json:"disabled,omitempty"`
+	Dynamic  string `json:"dynamic,omitempty"`
 	List     string `json:"list"`
 }
