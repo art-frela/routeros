@@ -14,12 +14,6 @@
 # downloads an arch-specific CHR disk; buildx builds each platform FROM
 # scratch under its own QEMU emulation, so a SINGLE multi-platform build is
 # correct here — no per-arch matrix job is needed.
-#
-# Known caveat: ROUTEROS_ARCH has a static Dockerfile default (x86_64) and a
-# custom build-arg cannot vary per platform within one buildx invocation, so
-# until the Dockerfile maps buildx's automatic TARGETARCH arg, the linux/arm64
-# leg bakes the x86_64 emulator + x86 CHR disk (boots via cross-emulation;
-# slower than a native aarch64 CHR would be).
 
 name: Publish CHR test image
 
