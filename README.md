@@ -191,6 +191,19 @@ go test -v ./...
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
+## Versioning
+
+This project follows [Semantic Versioning (SemVer)](https://semver.org/).
+
+- Tags follow SemVer format (e.g., `v1.2.3`).
+- Pre-v1 releases (`v0.x`) may include breaking changes between minor versions.
+- A future `v2.0.0` release will require a Go module path change to `github.com/art-frela/routeros/v2`.
+- See [CHANGELOG.md](CHANGELOG.md) for version history and the [GitHub tags page](https://github.com/art-frela/routeros/tags) for all releases.
+
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for a detailed history of changes.

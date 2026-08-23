@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -17,11 +16,6 @@ import (
 	"golang.org/x/time/rate"
 )
 
-var (
-	errMissBaseURL    = errors.New("miss baseURL")
-	errMissUserOrPass = errors.New("miss user/password")
-)
-
 type Config struct {
 	BaseURL              string        `envconfig:"base_url" validate:"required"`
 	RequestTimeout       time.Duration `envconfig:"request_timeout" default:"10s"`
@@ -29,6 +23,9 @@ type Config struct {
 	BurstRequestCount    int           `envconfig:"burst_req_count" default:"10"`
 	User                 string        `envconfig:"user" default:"root"`
 	Password             string        `envconfig:"password" default:"master"`
+	// HTTPClient is an optional custom *http.Client; envconfig:"-" is required
+	// because envconfig cannot derive an env key for *http.Client.
+	HTTPClient *http.Client `envconfig:"-"`
 }
 
 func NewClientConfigFromEnv(envPrefix string) (*Config, error) {
@@ -49,13 +46,14 @@ type Client struct {
 	baseURL        *url.URL
 	lim            *rate.Limiter
 	requestTimeout time.Duration
+	httpClient     *http.Client
 	user           string
 	password       string
 }
 
 func NewClient(cfg Config) (*Client, error) {
 	if cfg.BaseURL == "" {
-		return nil, errMissBaseURL
+		return nil, ErrMissBaseURL
 	}
 
 	u, err := url.Parse(cfg.BaseURL)
@@ -64,17 +62,24 @@ func NewClient(cfg Config) (*Client, error) {
 	}
 
 	if cfg.User == "" || cfg.Password == "" {
-		return nil, errMissUserOrPass
+		return nil, ErrMissUserOrPass
 	}
 
 	u.Path = path.Join(u.Path, types.EndpointRest)
 
 	rt := rate.Every(cfg.PauseBetweenRequests)
 
+	httpClient := cfg.HTTPClient
+	if httpClient == nil {
+		// No Timeout: per-request timeout is applied via context in makeRequest.
+		httpClient = &http.Client{}
+	}
+
 	c := &Client{
 		baseURL:        u,
 		lim:            rate.NewLimiter(rt, cfg.BurstRequestCount),
 		requestTimeout: cfg.RequestTimeout,
+		httpClient:     httpClient,
 		user:           cfg.User,
 		password:       cfg.Password,
 	}
@@ -134,7 +139,7 @@ func makeRequest[T any](ctx context.Context, c *Client, apiEndpoint, method stri
 	req.Header.Set("Content-Type", "application/json")
 	req.SetBasicAuth(c.user, c.password)
 
-	res, err := http.DefaultClient.Do(req)
+	res, err := c.httpClient.Do(req)
 	if err != nil {
 		return sRes, err
 	}
@@ -149,11 +154,11 @@ func makeRequest[T any](ctx context.Context, c *Client, apiEndpoint, method stri
 			return sRes, err
 		}
 
-		return sRes, fmt.Errorf("status_code: %d, response: %s", res.StatusCode, string(body))
+		return sRes, &ResponseError{StatusCode: res.StatusCode, Body: string(body)}
 	}
 
 	if err := json.NewDecoder(res.Body).Decode(&sRes); err != nil {
-		return sRes, err
+		return sRes, fmt.Errorf("decode response: %w", err)
 	}
 
 	return sRes, nil

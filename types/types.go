@@ -40,5 +40,5 @@ func (dt *DateTime) UnmarshalJSON(data []byte) error {
 
 // MarshalJSON преобразует CustomTime обратно в JSON.
 func (dt DateTime) MarshalJSON() ([]byte, error) {
-	return json.Marshal(dt.Time.Format(time.DateTime))
+	return json.Marshal(dt.Format(time.DateTime))
 }

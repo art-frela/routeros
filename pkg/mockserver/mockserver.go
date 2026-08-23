@@ -69,7 +69,7 @@ func (s *Server) checkPathAndMethods(w http.ResponseWriter, r *http.Request, end
 
 	if !slices.Contains(allowedMethods, r.Method) {
 		w.WriteHeader(http.StatusServiceUnavailable)
-		io.WriteString(w, `<!doctype html>
+		_, _ = io.WriteString(w, `<!doctype html>
 <html lang=en>
 <title>Error 503 : unknown method</title>
 <h1>Error 503 : unknown method</h1>`)
@@ -82,5 +82,5 @@ func (s *Server) checkPathAndMethods(w http.ResponseWriter, r *http.Request, end
 
 func writeResponseJSON(w http.ResponseWriter, code int, resp any) {
 	w.WriteHeader(code)
-	json.NewEncoder(w).Encode(resp)
+	_ = json.NewEncoder(w).Encode(resp)
 }
