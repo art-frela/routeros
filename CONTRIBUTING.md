@@ -82,11 +82,12 @@ func TestIPService_GetAddresses(t *testing.T) {
 
     cfg, err := routeros.NewClientConfigFromEnv("ROS_TEST_FIND")
     assert.NoError(t, err)
-    c, err := routeros.NewClient(*cfg)
+    client, err := routeros.NewClient(*cfg)
     assert.NoError(t, err)
 
     // WHEN the IPService is called to get addresses
-    ips := &routeros.IPService{c: c}
+    // Public access: client.IPService (in-repo tests use &routeros.IPService{c: c} because they're in package routeros)
+    ips := client.IPService
     got, err := ips.GetAddresses(ctx)
 
     // THEN it should return the expected addresses
