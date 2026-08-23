@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"path"
 
 	"github.com/art-frela/routeros/types"
 )
@@ -13,12 +14,33 @@ func (s *Server) IPAddresses(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// RouterOS REST accepts the resource id as a trailing path segment
+	// (/rest/ip/address/*5); PUT always targets the collection itself.
+	pathID, okPath := resourceIDFromPath(r.URL.Path, types.EndpointIPAddresses)
+	if !okPath || (pathID != "" && r.Method == http.MethodPut) {
+		writeResponseJSON(w, http.StatusBadRequest, types.Error{
+			Detail:  "no such command or directory (...)",
+			Error:   http.StatusBadRequest,
+			Message: http.StatusText(http.StatusBadRequest),
+		})
+
+		return
+	}
+
+	// Normalize path-form URLs onto the collection path so the shared
+	// path/method gate treats both forms identically.
+	r.URL.Path = path.Join(types.EndpointRest, types.EndpointIPAddresses)
+
 	if !s.checkPathAndMethods(w, r, types.EndpointIPAddresses, []string{http.MethodGet, http.MethodPut, http.MethodDelete, http.MethodPatch}) {
 		return
 	}
 
 	if r.Method == http.MethodGet {
 		id := r.URL.Query().Get(".id")
+		if id == "" {
+			id = pathID
+		}
+
 		if id != "" {
 			// Find specific address by ID
 			for _, ipList := range s.ipAddresses {
@@ -56,11 +78,7 @@ func (s *Server) IPAddresses(w http.ResponseWriter, r *http.Request) {
 
 		addr, err := s.ipAddresses.add(newAddr)
 		if err != nil {
-			writeResponseJSON(w, http.StatusInternalServerError, types.Error{
-				Detail:  err.Error(),
-				Error:   http.StatusInternalServerError,
-				Message: http.StatusText(http.StatusInternalServerError),
-			})
+			writeResourceError(w, err)
 			return
 		}
 
@@ -72,6 +90,10 @@ func (s *Server) IPAddresses(w http.ResponseWriter, r *http.Request) {
 		// Remove address by ID
 		id := r.URL.Query().Get(".id")
 		if id == "" {
+			id = pathID
+		}
+
+		if id == "" {
 			writeResponseJSON(w, http.StatusBadRequest, types.Error{
 				Detail:  "missing .id parameter",
 				Error:   http.StatusBadRequest,
@@ -80,13 +102,8 @@ func (s *Server) IPAddresses(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		err := s.ipAddresses.remove(id)
-		if err != nil {
-			writeResponseJSON(w, http.StatusInternalServerError, types.Error{
-				Detail:  err.Error(),
-				Error:   http.StatusInternalServerError,
-				Message: http.StatusText(http.StatusInternalServerError),
-			})
+		if err := s.ipAddresses.remove(id); err != nil {
+			writeResourceError(w, err)
 			return
 		}
 
@@ -97,6 +114,10 @@ func (s *Server) IPAddresses(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPatch {
 		// Update address by ID
 		id := r.URL.Query().Get(".id")
+		if id == "" {
+			id = pathID
+		}
+
 		if id == "" {
 			writeResponseJSON(w, http.StatusBadRequest, types.Error{
 				Detail:  "missing .id parameter",
@@ -118,11 +139,7 @@ func (s *Server) IPAddresses(w http.ResponseWriter, r *http.Request) {
 
 		addr, err := s.ipAddresses.update(id, updateAddr)
 		if err != nil {
-			writeResponseJSON(w, http.StatusInternalServerError, types.Error{
-				Detail:  err.Error(),
-				Error:   http.StatusInternalServerError,
-				Message: http.StatusText(http.StatusInternalServerError),
-			})
+			writeResourceError(w, err)
 			return
 		}
 
@@ -172,7 +189,7 @@ func (m ipAddressesMap) remove(id string) error {
 	}
 
 	if idx == -1 {
-		return fmt.Errorf("address with id %s not found", id) // Item not found
+		return fmt.Errorf("address with id %s: %w", id, errResourceNotFound) // Item not found
 	}
 
 	// Remove the item
@@ -182,7 +199,7 @@ func (m ipAddressesMap) remove(id string) error {
 
 func (m ipAddressesMap) update(id string, item types.IPAddressAdd) (types.IPAddress, error) {
 	if m["default"] == nil {
-		return types.IPAddress{}, fmt.Errorf("address with id %s not found", id)
+		return types.IPAddress{}, fmt.Errorf("address with id %s: %w", id, errResourceNotFound)
 	}
 
 	// Find the item to update
@@ -195,7 +212,7 @@ func (m ipAddressesMap) update(id string, item types.IPAddressAdd) (types.IPAddr
 	}
 
 	if idx == -1 {
-		return types.IPAddress{}, fmt.Errorf("address with id %s not found", id)
+		return types.IPAddress{}, fmt.Errorf("address with id %s: %w", id, errResourceNotFound)
 	}
 
 	// Update the item

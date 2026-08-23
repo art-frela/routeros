@@ -80,6 +80,25 @@ func (s *Server) checkPathAndMethods(w http.ResponseWriter, r *http.Request, end
 	return true
 }
 
+// resourceIDFromPath extracts an optional trailing resource identifier from
+// the request path, mirroring RouterOS path-form URLs like /rest/ip/address/*5.
+// The id comes back decoded, so both wire spellings (*5 and %2A5) are equal.
+// ok is false when the path is neither the endpoint itself nor the endpoint
+// followed by exactly one id segment.
+func resourceIDFromPath(requestPath, endpoint string) (id string, ok bool) {
+	base := path.Join(types.EndpointRest, endpoint)
+	if requestPath == base {
+		return "", true
+	}
+
+	suffix, found := strings.CutPrefix(requestPath, base+"/")
+	if !found || suffix == "" || strings.Contains(suffix, "/") {
+		return "", false
+	}
+
+	return suffix, true
+}
+
 func writeResponseJSON(w http.ResponseWriter, code int, resp any) {
 	w.WriteHeader(code)
 	_ = json.NewEncoder(w).Encode(resp)

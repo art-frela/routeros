@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"path"
 
 	"github.com/art-frela/routeros/types"
 )
@@ -13,12 +14,33 @@ func (s *Server) IPRoutes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// RouterOS REST accepts the resource id as a trailing path segment
+	// (/rest/ip/route/*5); PUT always targets the collection itself.
+	pathID, okPath := resourceIDFromPath(r.URL.Path, types.EndpointIPRoutes)
+	if !okPath || (pathID != "" && r.Method == http.MethodPut) {
+		writeResponseJSON(w, http.StatusBadRequest, types.Error{
+			Detail:  "no such command or directory (...)",
+			Error:   http.StatusBadRequest,
+			Message: http.StatusText(http.StatusBadRequest),
+		})
+
+		return
+	}
+
+	// Normalize path-form URLs onto the collection path so the shared
+	// path/method gate treats both forms identically.
+	r.URL.Path = path.Join(types.EndpointRest, types.EndpointIPRoutes)
+
 	if !s.checkPathAndMethods(w, r, types.EndpointIPRoutes, []string{http.MethodGet, http.MethodPut, http.MethodDelete, http.MethodPatch}) {
 		return
 	}
 
 	if r.Method == http.MethodGet {
 		id := r.URL.Query().Get(".id")
+		if id == "" {
+			id = pathID
+		}
+
 		if id != "" {
 			// Find specific route by ID
 			for _, routeList := range s.ipRoutes {
@@ -56,11 +78,7 @@ func (s *Server) IPRoutes(w http.ResponseWriter, r *http.Request) {
 
 		route, err := s.ipRoutes.add(newRoute)
 		if err != nil {
-			writeResponseJSON(w, http.StatusInternalServerError, types.Error{
-				Detail:  err.Error(),
-				Error:   http.StatusInternalServerError,
-				Message: http.StatusText(http.StatusInternalServerError),
-			})
+			writeResourceError(w, err)
 			return
 		}
 
@@ -72,6 +90,10 @@ func (s *Server) IPRoutes(w http.ResponseWriter, r *http.Request) {
 		// Remove route by ID
 		id := r.URL.Query().Get(".id")
 		if id == "" {
+			id = pathID
+		}
+
+		if id == "" {
 			writeResponseJSON(w, http.StatusBadRequest, types.Error{
 				Detail:  "missing .id parameter",
 				Error:   http.StatusBadRequest,
@@ -80,13 +102,8 @@ func (s *Server) IPRoutes(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		err := s.ipRoutes.remove(id)
-		if err != nil {
-			writeResponseJSON(w, http.StatusInternalServerError, types.Error{
-				Detail:  err.Error(),
-				Error:   http.StatusInternalServerError,
-				Message: http.StatusText(http.StatusInternalServerError),
-			})
+		if err := s.ipRoutes.remove(id); err != nil {
+			writeResourceError(w, err)
 			return
 		}
 
@@ -97,6 +114,10 @@ func (s *Server) IPRoutes(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPatch {
 		// Update route by ID
 		id := r.URL.Query().Get(".id")
+		if id == "" {
+			id = pathID
+		}
+
 		if id == "" {
 			writeResponseJSON(w, http.StatusBadRequest, types.Error{
 				Detail:  "missing .id parameter",
@@ -118,11 +139,7 @@ func (s *Server) IPRoutes(w http.ResponseWriter, r *http.Request) {
 
 		route, err := s.ipRoutes.update(id, updateRoute)
 		if err != nil {
-			writeResponseJSON(w, http.StatusInternalServerError, types.Error{
-				Detail:  err.Error(),
-				Error:   http.StatusInternalServerError,
-				Message: http.StatusText(http.StatusInternalServerError),
-			})
+			writeResourceError(w, err)
 			return
 		}
 
@@ -171,7 +188,7 @@ func (m ipRoutesMap) remove(id string) error {
 	}
 
 	if idx == -1 {
-		return fmt.Errorf("route with id %s not found", id)
+		return fmt.Errorf("route with id %s: %w", id, errResourceNotFound)
 	}
 
 	m["default"] = append(m["default"][:idx], m["default"][idx+1:]...)
@@ -180,7 +197,7 @@ func (m ipRoutesMap) remove(id string) error {
 
 func (m ipRoutesMap) update(id string, item types.IPRouteAdd) (types.IPRoute, error) {
 	if m["default"] == nil {
-		return types.IPRoute{}, fmt.Errorf("route with id %s not found", id)
+		return types.IPRoute{}, fmt.Errorf("route with id %s: %w", id, errResourceNotFound)
 	}
 
 	idx := -1
@@ -192,7 +209,7 @@ func (m ipRoutesMap) update(id string, item types.IPRouteAdd) (types.IPRoute, er
 	}
 
 	if idx == -1 {
-		return types.IPRoute{}, fmt.Errorf("route with id %s not found", id)
+		return types.IPRoute{}, fmt.Errorf("route with id %s: %w", id, errResourceNotFound)
 	}
 
 	// Preserve existing fields and update only the provided ones
