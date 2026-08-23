@@ -5,6 +5,39 @@
 # considers the container alive for as long as the router runs.
 set -eu
 
+# RouterOS resources are tunable through the container environment:
+# QEMU_MEMORY (MiB) and QEMU_CPUS (vCPU count). Each knob must be a
+# positive integer; an invalid or missing value WARNs to stderr and falls
+# back to the default so a malformed knob never fails the boot.
+QEMU_MEMORY="${QEMU_MEMORY:-512}"
+QEMU_CPUS="${QEMU_CPUS:-2}"
+
+case "$QEMU_MEMORY" in
+    *[!0-9]*|'')
+        echo "WARN: QEMU_MEMORY='${QEMU_MEMORY}' is not a positive integer, using default 512" >&2
+        QEMU_MEMORY=512
+        ;;
+    *)
+        if [ "$QEMU_MEMORY" -lt 1 ]; then
+            echo "WARN: QEMU_MEMORY='${QEMU_MEMORY}' is not a positive integer, using default 512" >&2
+            QEMU_MEMORY=512
+        fi
+        ;;
+esac
+
+case "$QEMU_CPUS" in
+    *[!0-9]*|'')
+        echo "WARN: QEMU_CPUS='${QEMU_CPUS}' is not a positive integer, using default 2" >&2
+        QEMU_CPUS=2
+        ;;
+    *)
+        if [ "$QEMU_CPUS" -lt 1 ]; then
+            echo "WARN: QEMU_CPUS='${QEMU_CPUS}' is not a positive integer, using default 2" >&2
+            QEMU_CPUS=2
+        fi
+        ;;
+esac
+
 QEMU="/usr/bin/qemu-system-${ROUTEROS_ARCH}"
 
 case "${ROUTEROS_ARCH}" in
@@ -53,8 +86,8 @@ else
 fi
 
 exec "$QEMU" "$@" \
-    -m 512 \
-    -smp 2 \
+    -m "$QEMU_MEMORY" \
+    -smp "$QEMU_CPUS" \
     -netdev user,id=net0,hostfwd=tcp::80-:80 \
     -device virtio-net-pci,netdev=net0 \
     -display none \

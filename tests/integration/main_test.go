@@ -3,6 +3,12 @@
 // Package integration hosts the testify/suite-based integration tests of the
 // routeros client: a shared RouterOS CHR harness (this file) plus one
 // *_suite_test.go per domain, modeled after rehub-service's tests/integration.
+//
+// The CHR container source is configurable: ROUTEROS_IT_IMAGE runs a
+// prebuilt image instead of building the local test/integration context,
+// and ROUTEROS_IT_MEMORY / ROUTEROS_IT_CPUS are forwarded to the image's
+// QEMU_MEMORY / QEMU_CPUS entrypoint knobs (image defaults: 512 MiB, 2
+// vCPUs).
 package integration
 
 import (
@@ -60,11 +66,13 @@ var (
 
 // integrationClient returns a Client connected to a live RouterOS REST API.
 //
-// In BYO mode (ROS_INTEGRATION_BASE_URL set) the client is built from the
-// ROS_INTEGRATION_* environment and no container is started. Otherwise the
-// singleton RouterOS CHR container is built (first run only), booted, the
-// admin password is provisioned, and the shared client is returned. The test
-// is skipped with a clear message when Docker is missing or unhealthy.
+// Container source precedence: BYO device (ROS_INTEGRATION_BASE_URL set —
+// client built from the ROS_INTEGRATION_* environment, no container
+// started) > prebuilt image (ROUTEROS_IT_IMAGE, see startCHR) > build from
+// the local test/integration context. In the container modes the singleton
+// RouterOS CHR is built/pulled (first run only), booted, the admin
+// password is provisioned, and the shared client is returned. The test is
+// skipped with a clear message when Docker is missing or unhealthy.
 func integrationClient(t *testing.T) *routeros.Client {
 	t.Helper()
 
@@ -93,7 +101,9 @@ func integrationClient(t *testing.T) *routeros.Client {
 	return chrClient
 }
 
-// startCHR builds and boots the singleton CHR container, provisions the admin
+// startCHR creates the singleton CHR container — running the prebuilt image
+// referenced by ROUTEROS_IT_IMAGE when set, building the local
+// test/integration context otherwise — then boots it, provisions the admin
 // password and stores the shared client.
 //
 // It MUST NOT call t.Skip/t.Fatalf or anything that runtime.Goexits:
@@ -107,8 +117,38 @@ func startCHR() {
 	ver := chrVersion()
 	arch := chrArch()
 
+	// Container source precedence (the BYO device, ROS_INTEGRATION_BASE_URL,
+	// sits above both and is handled in integrationClient): prebuilt image
+	// (ROUTEROS_IT_IMAGE) > build from the local test/integration context.
+	// ROUTEROS_IT_MEMORY and ROUTEROS_IT_CPUS are forwarded to the image's
+	// QEMU_MEMORY/QEMU_CPUS entrypoint knobs via chrQemuEnv (unset knobs
+	// fall back to the image defaults).
 	req := testcontainers.ContainerRequest{
-		FromDockerfile: testcontainers.FromDockerfile{
+		Env:          chrQemuEnv(),
+		ExposedPorts: []string{"80/tcp"},
+		// The wait probe hits the REST endpoint itself: a fresh CHR answers
+		// 401 there, which already proves REST is serving (no WebFig "/" 200
+		// assumption). WithForcedIPv4LocalHost dodges the Docker-Desktop
+		// ::1 localhost pitfall on macOS.
+		WaitingFor: wait.ForHTTP("/rest/system/resource").
+			WithPort("80/tcp").
+			WithForcedIPv4LocalHost().
+			WithStatusCodeMatcher(func(code int) bool { return code >= 200 && code < 500 }).
+			WithStartupTimeout(10 * time.Minute),
+		// /dev/kvm acceleration when the host has it (Linux); nil elsewhere
+		// (macOS) — the entrypoint then falls back to TCG emulation.
+		HostConfigModifier: kvmHostConfigModifier(),
+	}
+
+	if imageRef := chrImageRef(); imageRef != "" {
+		// Prebuilt image: run the referenced image ref directly instead of
+		// building test/integration (fast path, e.g. the published
+		// multi-arch registry image).
+		req.Image = imageRef
+	} else {
+		// No image ref: build from the local test/integration context so a
+		// fresh clone runs without any registry access.
+		req.FromDockerfile = testcontainers.FromDockerfile{
 			// Relative to the test binary CWD (tests/integration), hence
 			// two levels up to the repo's test/integration assets.
 			Context:    "../../test/integration",
@@ -127,20 +167,7 @@ func startCHR() {
 			BuildOptionsModifier: func(opts *build.ImageBuildOptions) {
 				opts.Version = build.BuilderBuildKit
 			},
-		},
-		ExposedPorts: []string{"80/tcp"},
-		// The wait probe hits the REST endpoint itself: a fresh CHR answers
-		// 401 there, which already proves REST is serving (no WebFig "/" 200
-		// assumption). WithForcedIPv4LocalHost dodges the Docker-Desktop
-		// ::1 localhost pitfall on macOS.
-		WaitingFor: wait.ForHTTP("/rest/system/resource").
-			WithPort("80/tcp").
-			WithForcedIPv4LocalHost().
-			WithStatusCodeMatcher(func(code int) bool { return code >= 200 && code < 500 }).
-			WithStartupTimeout(10 * time.Minute),
-		// /dev/kvm acceleration when the host has it (Linux); nil elsewhere
-		// (macOS) — the entrypoint then falls back to TCG emulation.
-		HostConfigModifier: kvmHostConfigModifier(),
+		}
 	}
 
 	ctr, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
@@ -177,6 +204,30 @@ func startCHR() {
 		Password:       chrPassword,
 		RequestTimeout: itTimeout,
 	})
+}
+
+// chrImageRef returns the prebuilt CHR image reference to run instead of
+// building the local test/integration context (ROUTEROS_IT_IMAGE), or ""
+// when unset.
+func chrImageRef() string {
+	return os.Getenv("ROUTEROS_IT_IMAGE")
+}
+
+// chrQemuEnv forwards ROUTEROS_IT_MEMORY / ROUTEROS_IT_CPUS onto the image
+// contract knobs QEMU_MEMORY / QEMU_CPUS. Unset variables are omitted so the
+// image defaults (512 MiB, 2 vCPUs) apply.
+func chrQemuEnv() map[string]string {
+	env := make(map[string]string)
+
+	if v := os.Getenv("ROUTEROS_IT_MEMORY"); v != "" {
+		env["QEMU_MEMORY"] = v
+	}
+
+	if v := os.Getenv("ROUTEROS_IT_CPUS"); v != "" {
+		env["QEMU_CPUS"] = v
+	}
+
+	return env
 }
 
 // chrVersion returns the RouterOS CHR version to boot: ROUTEROS_IT_VERSION
