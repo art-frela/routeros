@@ -261,8 +261,15 @@ divergence, fix the mock rather than special-casing the test.
 - `.github/workflows/go.yml` runs the full integration suite on every push and
   PR with the exact command above. The job points `ROUTEROS_IT_IMAGE` at the
   prebuilt registry image (fast anonymous pull) and falls back to building
-  `test/integration/` when that directory changed in the commit, so a PR is
-  never tested against a stale image.
+  `test/integration/` with the docker CLI when that directory changed in the
+  event (or when the registry image is not pullable yet), so a PR is never
+  tested against a stale image. The CLI is used instead of the in-test
+  testcontainers build because a BuildKit build through the raw Docker Engine
+  API fails on plain `dockerd` daemons with `no active sessions` — only the
+  docker CLI attaches the client-side BuildKit session. The same workaround
+  applies locally if you ever hit that error: pre-build with
+  `docker build -t routeros-it-chr:7.23.3-<arch> test/integration` and export
+  `ROUTEROS_IT_IMAGE` with that tag.
 - `.github/workflows/chr-image.yml` publishes the multi-arch
   (`linux/amd64` + `linux/arm64`) image to
   `ghcr.io/art-frela/routeros-it-chr:<version>` (and `:latest`) on pushes to

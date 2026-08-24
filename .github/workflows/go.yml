@@ -50,12 +50,14 @@ jobs:
           file: coverage.out
 
   # Boots a real RouterOS CHR via testcontainers (Docker is preinstalled on
-  # ubuntu-latest; the GHCR image is public, so no docker login is needed).
-  # Image source: the prebuilt ghcr.io/art-frela/routeros-it-chr:7.23.3
+  # ubuntu-latest). Image source: the prebuilt ghcr.io/art-frela/routeros-it-chr:7.23.3
   # (published by .github/workflows/chr-image.yml) is pulled when nothing under
   # test/integration/** changed vs this event's base (fast - no in-CI build);
-  # when it did change, testcontainers builds the PR's own Dockerfile instead -
-  # no image/code skew and no race with the push-to-main publish job.
+  # when it did change (or the registry image is not pullable - e.g. the
+  # package is still private right after the first publish), the image is
+  # built from this commit's own test/integration Dockerfile with the docker
+  # CLI - no image/code skew, no race with the push-to-main publish job, and
+  # no dependency on the daemon's raw-API BuildKit session support.
   integration:
     name: Integration Tests (RouterOS CHR)
     runs-on: ubuntu-latest
@@ -84,23 +86,41 @@ jobs:
           BEFORE_SHA: ${{ github.event.before }}
         run: |
           set -eu
+          ARCH=x86_64
+          if [ "$(uname -m)" = "aarch64" ]; then ARCH=aarch64; fi
+          LOCAL_TAG="routeros-it-chr:7.23.3-${ARCH}"
+          GHCR_TAG="ghcr.io/art-frela/routeros-it-chr:7.23.3"
+
+          build_local() {
+            # Build with the docker CLI, not the in-test testcontainers build:
+            # a BuildKit build through the raw Engine API fails on plain
+            # dockerd daemons with "no active sessions" because only the CLI
+            # attaches the client-side BuildKit session.
+            docker build -t "$LOCAL_TAG" --build-arg ROUTEROS_VERSION=7.23.3 test/integration
+            echo "ROUTEROS_IT_IMAGE=${LOCAL_TAG}" >> "$GITHUB_ENV"
+          }
+
           if [ "$EVENT_NAME" = "pull_request" ]; then
             changed=$(git diff --name-only "$BASE_SHA" HEAD)
           elif [ -n "$BEFORE_SHA" ] && [ "$BEFORE_SHA" != "0000000000000000000000000000000000000000" ]; then
-            # Diff the FULL push range (before..after): a multi-commit push
-            # must not miss image-affecting changes in earlier commits.
+            # Full push range (before..after): a multi-commit push must not
+            # miss image-affecting changes in earlier commits.
             changed=$(git diff --name-only "$BEFORE_SHA" HEAD)
           else
-            # Zero before-sha (branch creation / rewritten history): fall
-            # back to building from source - always safe, never stale.
+            # Zero before-sha (branch creation / rewritten history): safest
+            # to treat everything as changed.
             changed="test/integration/Dockerfile"
           fi
+
           if printf '%s\n' "$changed" | grep -Eq '^(test/integration/|\.github/workflows/chr-image\.yml)'; then
-            echo "CHR image inputs changed in this event - ROUTEROS_IT_IMAGE left unset;"
-            echo "testcontainers will build this commit's own test/integration Dockerfile."
-          else
+            echo "CHR image inputs changed in this event - building this commit's image with the docker CLI."
+            build_local
+          elif docker pull -q "$GHCR_TAG" 2>/dev/null; then
             echo "CHR image inputs unchanged - using prebuilt GHCR image."
-            echo "ROUTEROS_IT_IMAGE=ghcr.io/art-frela/routeros-it-chr:7.23.3" >> "$GITHUB_ENV"
+            echo "ROUTEROS_IT_IMAGE=${GHCR_TAG}" >> "$GITHUB_ENV"
+          else
+            echo "Prebuilt image not pullable (package not published yet or private) - building locally instead."
+            build_local
           fi
 
       - name: Install dependencies
