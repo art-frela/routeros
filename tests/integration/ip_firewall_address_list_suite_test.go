@@ -37,13 +37,9 @@ func (s *FirewallAddressListSuite) TestAddAndFind() {
 	// GIVEN a unique firewall address-list entry: the list name is unique
 	// per run (no Remove API exists — the service exposes only Find/Add —
 	// so entries accumulate harmlessly on the throwaway CHR container and
-	// unique names keep reruns collision-free). Disabled/Dynamic are set
-	// explicitly because FirewallAddressListNewItem has no omitempty on its
-	// string fields: a bare {Address, List} marshals "disabled":""/"dynamic":""
-	// and the REAL RouterOS rejects empty booleans with 400 "must be either
-	// yes or no" (probe-verified against CHR 7.23.3; the mock tolerates it).
-	// Input dialect is yes/no; the response still reports "false" (asserted
-	// below).
+	// unique names keep reruns collision-free). The optional fields are
+	// omitempty since the Amendment-3 fix: a bare {Address, List} works
+	// against live RouterOS.
 	n := time.Now().UnixNano()%200 + 10
 	listName := fmt.Sprintf("itlist-%d", time.Now().UnixNano())
 	addr := fmt.Sprintf("192.168.%d.100", n)
@@ -52,10 +48,8 @@ func (s *FirewallAddressListSuite) TestAddAndFind() {
 	added, err := s.Client.IPFirewallAddressListService.Add(
 		ctx,
 		types.FirewallAddressListNewItem{
-			Address:  addr,
-			List:     listName,
-			Disabled: "no",
-			Dynamic:  "no",
+			Address: addr,
+			List:    listName,
 		},
 	)
 
@@ -107,17 +101,13 @@ func (s *FirewallAddressListSuite) TestDuplicateRejected() {
 	defer cancel()
 
 	// GIVEN a fresh unique {list, address} pair so reruns never collide
-	// with entries from earlier runs. Disabled/Dynamic:"no" for the same
-	// reason as in TestAddAndFind: the no-omitempty struct marshals them
-	// and real RouterOS rejects empty boolean strings.
+	// with entries from earlier runs
 	n := time.Now().UnixNano()%200 + 10
 	listName := fmt.Sprintf("itlist-%d", time.Now().UnixNano())
 	addr := fmt.Sprintf("192.168.%d.101", n)
 	item := types.FirewallAddressListNewItem{
-		Address:  addr,
-		List:     listName,
-		Disabled: "no",
-		Dynamic:  "no",
+		Address: addr,
+		List:    listName,
 	}
 
 	// WHEN the pair is added twice
