@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -158,6 +159,12 @@ func makeRequest[T any](ctx context.Context, c *Client, apiEndpoint, method stri
 	}
 
 	if err := json.NewDecoder(res.Body).Decode(&sRes); err != nil {
+		// RouterOS answers successful DELETE with 204 No Content and an
+		// empty body: the zero value of T is the result, not an error.
+		if errors.Is(err, io.EOF) {
+			return sRes, nil
+		}
+
 		return sRes, fmt.Errorf("decode response: %w", err)
 	}
 

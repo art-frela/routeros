@@ -187,6 +187,21 @@ The library includes a comprehensive test suite with mock server implementations
 go test -v ./...
 ```
 
+An integration suite additionally exercises the implemented services against a
+real RouterOS CHR booted in Docker via
+[testcontainers](https://github.com/testcontainers/testcontainers-go):
+
+```bash
+go test -tags=integration -timeout 25m -v ./...
+```
+
+Docker is the only prerequisite (Linux and macOS work out of the box); without
+Docker the integration suites simply skip. To run them against your own device
+instead of the container, set `ROS_INTEGRATION_BASE_URL` (plus optional
+`ROS_INTEGRATION_USER`/`ROS_INTEGRATION_PASSWORD`). See
+[CONTRIBUTING.md#integration-tests](CONTRIBUTING.md#integration-tests) for the
+full guide.
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.

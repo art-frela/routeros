@@ -54,21 +54,23 @@ func (ips *IPService) AddAddress(ctx context.Context, item types.IPAddressAdd) (
 	return res, nil
 }
 
-// RemoveAddress removes an IP address by its ID.
+// RemoveAddress removes an IP address by its ID. The id is sent as a
+// trailing path segment (/rest/ip/address/<id>), the only id form RouterOS
+// REST accepts on DELETE.
 //
 // RouterOS API docs: https://manual.mikrotik.com/docs/Developer+Guides/rest-api
 func (ips *IPService) RemoveAddress(ctx context.Context, id string) error {
-	queries := url.Values{".id": []string{id}}
-	_, err := makeRequest[any](ctx, ips.c, types.EndpointIPAddresses, http.MethodDelete, nil, queries)
+	_, err := makeRequest[any](ctx, ips.c, types.EndpointIPAddresses+"/"+id, http.MethodDelete, nil, nil)
 	return err
 }
 
-// UpdateAddress updates an existing IP address identified by its ID.
+// UpdateAddress updates an existing IP address identified by its ID. The id
+// is sent as a trailing path segment (/rest/ip/address/<id>), the only id
+// form RouterOS REST accepts on PATCH.
 //
 // RouterOS API docs: https://manual.mikrotik.com/docs/Developer+Guides/rest-api
 func (ips *IPService) UpdateAddress(ctx context.Context, id string, item types.IPAddressAdd) (types.IPAddress, error) {
-	queries := url.Values{".id": []string{id}}
-	res, err := makeRequest[types.IPAddress](ctx, ips.c, types.EndpointIPAddresses, http.MethodPatch, item, queries)
+	res, err := makeRequest[types.IPAddress](ctx, ips.c, types.EndpointIPAddresses+"/"+id, http.MethodPatch, item, nil)
 	if err != nil {
 		return types.IPAddress{}, err
 	}

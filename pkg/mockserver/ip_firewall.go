@@ -2,6 +2,8 @@ package mockserver
 
 import (
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 	"slices"
 	"time"
@@ -26,14 +28,31 @@ func (s *Server) IPFirewallAddressList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// POST
-	var newItem types.FirewallAddressListNewItem
-	if err := json.NewDecoder(r.Body).Decode(&newItem); err != nil {
+	// PUT (add new entry)
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
 		writeResponseJSON(w, http.StatusInternalServerError, types.Error{
 			Detail:  err.Error(),
 			Error:   http.StatusInternalServerError,
 			Message: http.StatusText(http.StatusInternalServerError),
 		})
+
+		return
+	}
+
+	var newItem types.FirewallAddressListNewItem
+	if err := json.Unmarshal(body, &newItem); err != nil {
+		writeResponseJSON(w, http.StatusInternalServerError, types.Error{
+			Detail:  err.Error(),
+			Error:   http.StatusInternalServerError,
+			Message: http.StatusText(http.StatusInternalServerError),
+		})
+
+		return
+	}
+
+	if invalid := validateOptionalBooleans(body, "disabled", "dynamic"); invalid != nil {
+		writeResponseJSON(w, http.StatusBadRequest, *invalid)
 
 		return
 	}
@@ -46,6 +65,35 @@ func (s *Server) IPFirewallAddressList(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeResponseJSON(w, http.StatusOK, item)
+}
+
+// validateOptionalBooleans mirrors RouterOS: optional boolean fields may be
+// absent from the payload, but when present their value must be one of
+// yes/no/true/false — anything else (including the empty string) draws
+// 400 "invalid value of <field>, must be either yes or no".
+func validateOptionalBooleans(payload []byte, keys ...string) *types.Error {
+	var raw map[string]any
+	if err := json.Unmarshal(payload, &raw); err != nil {
+		return nil // malformed JSON is reported by the struct decode
+	}
+
+	for _, key := range keys {
+		value, present := raw[key]
+		if !present {
+			continue
+		}
+
+		str, isString := value.(string)
+		if !isString || !slices.Contains([]string{"yes", "no", "true", "false"}, str) {
+			return &types.Error{
+				Detail:  fmt.Sprintf("invalid value of %s, must be either yes or no", key),
+				Error:   http.StatusBadRequest,
+				Message: http.StatusText(http.StatusBadRequest),
+			}
+		}
+	}
+
+	return nil
 }
 
 type ipFwList map[string]types.FirewallAddressList

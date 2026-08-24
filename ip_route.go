@@ -57,22 +57,24 @@ func (s *IPRouteService) AddRoute(ctx context.Context, item types.IPRouteAdd) (t
 	return res, nil
 }
 
-// RemoveRoute removes an IP route by its ID.
+// RemoveRoute removes an IP route by its ID. The id is sent as a trailing
+// path segment (/rest/ip/route/<id>), the only id form RouterOS REST
+// accepts on DELETE.
 //
 // RouterOS REST API: https://manual.mikrotik.com/docs/Developer+Guides/rest-api
 func (s *IPRouteService) RemoveRoute(ctx context.Context, id string) error {
-	queries := url.Values{".id": []string{id}}
-	_, err := makeRequest[any](ctx, s.c, types.EndpointIPRoutes, http.MethodDelete, nil, queries)
+	_, err := makeRequest[any](ctx, s.c, types.EndpointIPRoutes+"/"+id, http.MethodDelete, nil, nil)
 
 	return err
 }
 
-// UpdateRoute updates an existing IP route identified by its ID.
+// UpdateRoute updates an existing IP route identified by its ID. The id is
+// sent as a trailing path segment (/rest/ip/route/<id>), the only id form
+// RouterOS REST accepts on PATCH.
 //
 // RouterOS REST API: https://manual.mikrotik.com/docs/Developer+Guides/rest-api
 func (s *IPRouteService) UpdateRoute(ctx context.Context, id string, item types.IPRouteAdd) (types.IPRoute, error) {
-	queries := url.Values{".id": []string{id}}
-	res, err := makeRequest[types.IPRoute](ctx, s.c, types.EndpointIPRoutes, http.MethodPatch, item, queries)
+	res, err := makeRequest[types.IPRoute](ctx, s.c, types.EndpointIPRoutes+"/"+id, http.MethodPatch, item, nil)
 	if err != nil {
 		return types.IPRoute{}, err
 	}
