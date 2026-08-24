@@ -47,7 +47,7 @@ jobs:
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          file: coverage.out
+          files: coverage.out
 
   # Boots a real RouterOS CHR via testcontainers (Docker is preinstalled on
   # ubuntu-latest). Image source: the prebuilt ghcr.io/art-frela/routeros-it-chr:7.23.3
