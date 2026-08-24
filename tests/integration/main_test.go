@@ -5,7 +5,7 @@
 // *_suite_test.go per domain, modeled after rehub-service's tests/integration.
 //
 // The CHR container source is configurable: ROUTEROS_IT_IMAGE runs a
-// prebuilt image instead of building the local test/integration context,
+// prebuilt image instead of building the local tests/integration context,
 // and ROUTEROS_IT_MEMORY / ROUTEROS_IT_CPUS are forwarded to the image's
 // QEMU_MEMORY / QEMU_CPUS entrypoint knobs (image defaults: 512 MiB, 2
 // vCPUs).
@@ -69,7 +69,7 @@ var (
 // Container source precedence: BYO device (ROS_INTEGRATION_BASE_URL set —
 // client built from the ROS_INTEGRATION_* environment, no container
 // started) > prebuilt image (ROUTEROS_IT_IMAGE, see startCHR) > build from
-// the local test/integration context. In the container modes the singleton
+// the local tests/integration context. In the container modes the singleton
 // RouterOS CHR is built/pulled (first run only), booted, the admin
 // password is provisioned, and the shared client is returned. The test is
 // skipped with a clear message when Docker is missing or unhealthy.
@@ -103,7 +103,7 @@ func integrationClient(t *testing.T) *routeros.Client {
 
 // startCHR creates the singleton CHR container — running the prebuilt image
 // referenced by ROUTEROS_IT_IMAGE when set, building the local
-// test/integration context otherwise — then boots it, provisions the admin
+// tests/integration context otherwise — then boots it, provisions the admin
 // password and stores the shared client.
 //
 // It MUST NOT call t.Skip/t.Fatalf or anything that runtime.Goexits:
@@ -119,7 +119,7 @@ func startCHR() {
 
 	// Container source precedence (the BYO device, ROS_INTEGRATION_BASE_URL,
 	// sits above both and is handled in integrationClient): prebuilt image
-	// (ROUTEROS_IT_IMAGE) > build from the local test/integration context.
+	// (ROUTEROS_IT_IMAGE) > build from the local tests/integration context.
 	// ROUTEROS_IT_MEMORY and ROUTEROS_IT_CPUS are forwarded to the image's
 	// QEMU_MEMORY/QEMU_CPUS entrypoint knobs via chrQemuEnv (unset knobs
 	// fall back to the image defaults).
@@ -142,16 +142,18 @@ func startCHR() {
 
 	if imageRef := chrImageRef(); imageRef != "" {
 		// Prebuilt image: run the referenced image ref directly instead of
-		// building test/integration (fast path, e.g. the published
+		// building the local context (fast path, e.g. the published
 		// multi-arch registry image).
 		req.Image = imageRef
 	} else {
-		// No image ref: build from the local test/integration context so a
+		// No image ref: build from the local tests/integration context so a
 		// fresh clone runs without any registry access.
 		req.FromDockerfile = testcontainers.FromDockerfile{
-			// Relative to the test binary CWD (tests/integration), hence
-			// two levels up to the repo's test/integration assets.
-			Context:    "../../test/integration",
+			// Relative to the test binary CWD, which is this package
+			// directory: the image assets live in the chr/ subfolder next
+			// to the suite files, keeping their build context free of Go
+			// sources.
+			Context:    "chr",
 			Dockerfile: "Dockerfile",
 			// Fixed repo/tag + KeepImage avoid the default UUID-tag rebuild
 			// churn; Docker layer cache makes reruns cheap.
@@ -207,7 +209,7 @@ func startCHR() {
 }
 
 // chrImageRef returns the prebuilt CHR image reference to run instead of
-// building the local test/integration context (ROUTEROS_IT_IMAGE), or ""
+// building the local tests/integration context (ROUTEROS_IT_IMAGE), or ""
 // when unset.
 func chrImageRef() string {
 	return os.Getenv("ROUTEROS_IT_IMAGE")

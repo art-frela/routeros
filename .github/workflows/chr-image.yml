@@ -1,5 +1,5 @@
 # Publishes the QEMU-wrapped RouterOS CHR test image (build context
-# test/integration/) to GHCR as a multi-arch manifest:
+# tests/integration/chr/) to GHCR as a multi-arch manifest:
 #
 #   ghcr.io/art-frela/routeros-it-chr:<ROUTEROS_VERSION>  (multi-arch manifest)
 #   ghcr.io/art-frela/routeros-it-chr:latest
@@ -21,7 +21,8 @@ on:
   push:
     branches: [main]
     paths:
-      - 'test/integration/**'
+      - 'tests/integration/chr/Dockerfile'
+      - 'tests/integration/chr/entrypoint.sh'
       - '.github/workflows/chr-image.yml'
   workflow_dispatch:
     inputs:
@@ -73,7 +74,7 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
-          context: test/integration
+          context: tests/integration/chr
           platforms: linux/amd64,linux/arm64
           push: true
           build-args: |

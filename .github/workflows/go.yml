@@ -51,13 +51,14 @@ jobs:
 
   # Boots a real RouterOS CHR via testcontainers (Docker is preinstalled on
   # ubuntu-latest). Image source: the prebuilt ghcr.io/art-frela/routeros-it-chr:7.23.3
-  # (published by .github/workflows/chr-image.yml) is pulled when nothing under
-  # test/integration/** changed vs this event's base (fast - no in-CI build);
-  # when it did change (or the registry image is not pullable - e.g. the
-  # package is still private right after the first publish), the image is
-  # built from this commit's own test/integration Dockerfile with the docker
-  # CLI - no image/code skew, no race with the push-to-main publish job, and
-  # no dependency on the daemon's raw-API BuildKit session support.
+  # (published by .github/workflows/chr-image.yml) is pulled when the image
+  # assets under tests/integration/chr/ did not change vs this event's base
+  # (fast - no in-CI build); when they did change (or the registry image is
+  # not pullable - e.g. the package is still private right after the first
+  # publish), the image is built from this commit's own chr/ Dockerfile with
+  # the docker CLI - no image/code skew, no race with the push-to-main
+  # publish job, and no dependency on the daemon's raw-API BuildKit session
+  # support.
   integration:
     name: Integration Tests (RouterOS CHR)
     runs-on: ubuntu-latest
@@ -96,7 +97,7 @@ jobs:
             # a BuildKit build through the raw Engine API fails on plain
             # dockerd daemons with "no active sessions" because only the CLI
             # attaches the client-side BuildKit session.
-            docker build -t "$LOCAL_TAG" --build-arg ROUTEROS_VERSION=7.23.3 test/integration
+            docker build -t "$LOCAL_TAG" --build-arg ROUTEROS_VERSION=7.23.3 tests/integration/chr
             echo "ROUTEROS_IT_IMAGE=${LOCAL_TAG}" >> "$GITHUB_ENV"
           }
 
@@ -109,10 +110,10 @@ jobs:
           else
             # Zero before-sha (branch creation / rewritten history): safest
             # to treat everything as changed.
-            changed="test/integration/Dockerfile"
+            changed="tests/integration/chr/Dockerfile"
           fi
 
-          if printf '%s\n' "$changed" | grep -Eq '^(test/integration/|\.github/workflows/chr-image\.yml)'; then
+          if printf '%s\n' "$changed" | grep -Eq '^(tests/integration/chr/|\.github/workflows/chr-image\.yml)'; then
             echo "CHR image inputs changed in this event - building this commit's image with the docker CLI."
             build_local
           elif docker pull -q "$GHCR_TAG" 2>/dev/null; then

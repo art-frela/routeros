@@ -169,7 +169,7 @@ The harness picks the router source in this precedence:
    instead of building, e.g. the registry image
    `ghcr.io/art-frela/routeros-it-chr:7.23.3` (public package, anonymous pull,
    no `docker login`).
-3. **Build locally** (default) — the harness builds `test/integration/` into
+3. **Build locally** (default) — the harness builds `tests/integration/chr/` into
    `routeros-it-chr:<version>-<arch>` and reuses that image on later runs.
 
 Additional knobs:
@@ -186,7 +186,7 @@ Example: `ROUTEROS_IT_IMAGE=ghcr.io/art-frela/routeros-it-chr:7.23.3 ROUTEROS_IT
 
 Integration code lives in two places:
 
-- `test/integration/Dockerfile` + `test/integration/entrypoint.sh` — the
+- `tests/integration/chr/Dockerfile` + `tests/integration/chr/entrypoint.sh` — the
   QEMU-wrapped CHR image: downloads and converts the CHR disk, forwards guest
   tcp/80 to container tcp/80, reads `QEMU_MEMORY` / `QEMU_CPUS` from the
   container environment.
@@ -261,19 +261,19 @@ divergence, fix the mock rather than special-casing the test.
 - `.github/workflows/go.yml` runs the full integration suite on every push and
   PR with the exact command above. The job points `ROUTEROS_IT_IMAGE` at the
   prebuilt registry image (fast anonymous pull) and falls back to building
-  `test/integration/` with the docker CLI when that directory changed in the
+  `tests/integration/chr/` with the docker CLI when the image assets changed in the
   event (or when the registry image is not pullable yet), so a PR is never
   tested against a stale image. The CLI is used instead of the in-test
   testcontainers build because a BuildKit build through the raw Docker Engine
   API fails on plain `dockerd` daemons with `no active sessions` — only the
   docker CLI attaches the client-side BuildKit session. The same workaround
   applies locally if you ever hit that error: pre-build with
-  `docker build -t routeros-it-chr:7.23.3-<arch> test/integration` and export
+  `docker build -t routeros-it-chr:7.23.3-<arch> tests/integration/chr` and export
   `ROUTEROS_IT_IMAGE` with that tag.
 - `.github/workflows/chr-image.yml` publishes the multi-arch
   (`linux/amd64` + `linux/arm64`) image to
   `ghcr.io/art-frela/routeros-it-chr:<version>` (and `:latest`) on pushes to
-  `main` touching `test/integration/**`, plus `workflow_dispatch`. Note: the
+  `main` touching `tests/integration/chr/**`, plus `workflow_dispatch`. Note: the
   first publish of a new GHCR package is **private by default** — flip it to
   public once in the GitHub package settings so consumers can pull anonymously.
 
