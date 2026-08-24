@@ -81,12 +81,19 @@ jobs:
         env:
           EVENT_NAME: ${{ github.event_name }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BEFORE_SHA: ${{ github.event.before }}
         run: |
           set -eu
           if [ "$EVENT_NAME" = "pull_request" ]; then
             changed=$(git diff --name-only "$BASE_SHA" HEAD)
+          elif [ -n "$BEFORE_SHA" ] && [ "$BEFORE_SHA" != "0000000000000000000000000000000000000000" ]; then
+            # Diff the FULL push range (before..after): a multi-commit push
+            # must not miss image-affecting changes in earlier commits.
+            changed=$(git diff --name-only "$BEFORE_SHA" HEAD)
           else
-            changed=$(git diff --name-only HEAD^ HEAD)
+            # Zero before-sha (branch creation / rewritten history): fall
+            # back to building from source - always safe, never stale.
+            changed="test/integration/Dockerfile"
           fi
           if printf '%s\n' "$changed" | grep -Eq '^(test/integration/|\.github/workflows/chr-image\.yml)'; then
             echo "CHR image inputs changed in this event - ROUTEROS_IT_IMAGE left unset;"
