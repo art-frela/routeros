@@ -262,7 +262,10 @@ func kvmHostConfigModifier() func(*container.HostConfig) {
 
 	return func(hc *container.HostConfig) {
 		hc.Devices = []container.DeviceMapping{
-			{PathOnHost: "/dev/kvm", PathInContainer: "/dev/kvm"},
+			// CgroupPermissions is mandatory on plain-Linux daemons: runc
+			// rejects the device rule without it ("device access ... field
+			// cannot be empty"); the docker CLI defaults it to "rwm".
+			{PathOnHost: "/dev/kvm", PathInContainer: "/dev/kvm", CgroupPermissions: "rwm"},
 		}
 	}
 }
